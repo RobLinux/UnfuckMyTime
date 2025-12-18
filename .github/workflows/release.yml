@@ -30,10 +30,20 @@ jobs:
           dotnet publish src/UnfuckMyTime.UI/UnfuckMyTime.UI.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o dist/win-x64
 
       - name: Build Installer
+        shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           Write-Host "Building installer for version $version"
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" installer\setup.iss
+          
+          # Add Choco bin to path just in case
+          $env:Path = "C:\ProgramData\chocolatey\bin;$env:Path"
+          
+          if (Get-Command "iscc" -ErrorAction SilentlyContinue) {
+              iscc "/DMyAppVersion=$version" installer\setup.iss
+          } else {
+              Write-Host "iscc not found in path, trying standard installation path..."
+              & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" installer\setup.iss
+          }
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
