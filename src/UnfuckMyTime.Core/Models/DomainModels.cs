@@ -67,4 +67,13 @@ namespace UnfuckMyTime.Core.Models
 
         public bool IsExpired(DateTime now) => ExpiresAt.HasValue && now > ExpiresAt.Value;
     }
+
+    public class SessionStatusSnapshot
+    {
+        public TimeSpan SlackRemaining { get; set; }
+        public TimeSpan TotalSlackBudget { get; set; }
+        public TimeSpan? TimeUntilReset { get; set; }
+        public bool IsDistracted { get; set; }
+        public bool IsPaused { get; set; }
+    }
 }

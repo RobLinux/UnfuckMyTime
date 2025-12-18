@@ -65,6 +65,7 @@ App_Data/
 *.i
 *.tlog
 
-# don't ignore these!
-!*.dll
-!*.obj
+# Custom
+dist/
+src/packages/
+installer/Output/

@@ -18,6 +18,7 @@ namespace UnfuckMyTime.UI
         private readonly SessionManager _sessionManager;
         private DispatcherTimer _sessionTimer;
         private DateTime _sessionStartTime;
+        private DateTime _pauseStartTime;
 
         public MainWindow(SessionManager sessionManager)
         {
@@ -118,6 +119,8 @@ namespace UnfuckMyTime.UI
             }
         }
 
+        private OverlayWindow? _overlay;
+
         private void StartSessionBtn_Click(object sender, RoutedEventArgs e)
         {
             if (_currentGeneratedPlan == null) return;
@@ -130,6 +133,34 @@ namespace UnfuckMyTime.UI
 
             _sessionStartTime = DateTime.Now;
             _sessionTimer.Start();
+
+            // Create and Show Overlay
+            _overlay = new OverlayWindow();
+            _overlay.Show();
+            _overlay.PauseRequested += (s, args) =>
+            {
+                // Toggle Pause
+                if (_sessionManager.IsPaused)
+                {
+                    // RESUME
+                    var pauseDuration = DateTime.Now - _pauseStartTime;
+                    _sessionStartTime = _sessionStartTime.Add(pauseDuration);
+
+                    _sessionManager.SetPaused(false);
+                    _overlay.SetPauseState(false);
+                    _sessionTimer.Start();
+                }
+                else
+                {
+                    // PAUSE
+                    _pauseStartTime = DateTime.Now;
+
+                    _sessionManager.SetPaused(true);
+                    _overlay.SetPauseState(true);
+                    _sessionTimer.Stop();
+                }
+            };
+            _overlay.StopRequested += (s, args) => EndSessionBtn_Click(null, null);
 
             var sessionPlan = new SessionPlan
             {
@@ -144,10 +175,46 @@ namespace UnfuckMyTime.UI
             };
 
             _sessionManager.StateChanged += SessionManager_StateChanged;
+            _sessionManager.StatusUpdated += SessionManager_StatusUpdated;
             _sessionManager.StartSession(sessionPlan);
 
             LogOutput.AppendText($"--- Session Started at {_sessionStartTime} ---\n");
             LogOutput.AppendText($"Plan: {_currentGeneratedPlan.Reasoning}\n");
+        }
+
+        private SessionStatusSnapshot? _lastStatusSnapshot;
+
+        private DateTime? _distractionStartTime;
+
+        private void SessionManager_StatusUpdated(object? sender, SessionStatusSnapshot e)
+        {
+            // Handle timer pausing logic on UI thread to avoid races with Tick
+            Dispatcher.Invoke(() =>
+            {
+                bool wasDistracted = _lastStatusSnapshot?.IsDistracted ?? false;
+                bool isDistracted = e.IsDistracted;
+
+                if (!wasDistracted && isDistracted)
+                {
+                    // Distraction Started -> Freeze timer
+                    _distractionStartTime = DateTime.Now;
+                }
+                else if (wasDistracted && !isDistracted)
+                {
+                    // Distraction Ended -> Refund time
+                    if (_distractionStartTime.HasValue)
+                    {
+                        var duration = DateTime.Now - _distractionStartTime.Value;
+                        _sessionStartTime = _sessionStartTime.Add(duration);
+                        _distractionStartTime = null;
+
+                        // Optional: Log the refund?
+                        // LogOutput.AppendText($"[System] Distraction ended. Refunded {duration.TotalSeconds:F1}s to session timer.\n");
+                    }
+                }
+
+                _lastStatusSnapshot = e;
+            });
         }
 
         private void SessionManager_StateChanged(object? sender, string message)
@@ -159,11 +226,17 @@ namespace UnfuckMyTime.UI
             });
         }
 
-        private void EndSessionBtn_Click(object sender, RoutedEventArgs e)
+        private void EndSessionBtn_Click(object? sender, RoutedEventArgs? e)
         {
             _sessionTimer.Stop();
             _sessionManager.StopSession();
             _sessionManager.StateChanged -= SessionManager_StateChanged;
+            _sessionManager.StatusUpdated -= SessionManager_StatusUpdated;
+
+            _overlay?.Close();
+            _overlay = null;
+            _lastStatusSnapshot = null;
+            _distractionStartTime = null;
 
             SetupView.Visibility = Visibility.Visible;
             DashboardView.Visibility = Visibility.Collapsed;
@@ -174,8 +247,33 @@ namespace UnfuckMyTime.UI
 
         private void SessionTimer_Tick(object? sender, EventArgs e)
         {
-            var elapsed = DateTime.Now - _sessionStartTime;
-            TimerText.Text = elapsed.ToString(@"hh\:mm\:ss");
+            if (_currentGeneratedPlan == null) return;
+
+            var now = DateTime.Now;
+            var sessionDuration = TimeSpan.FromMinutes(_currentGeneratedPlan.DurationMinutes);
+
+            // Calculate elapsed time.
+            // If we are currently distracted, we freeze it at the start of distraction.
+            // If explicit pause is active, _sessionTimer is stopped, so this Tick doesn't run anyway (usually).
+            // But if Overlay calls Pause, we stop this timer.
+
+            TimeSpan elapsed;
+            if (_distractionStartTime.HasValue)
+            {
+                elapsed = _distractionStartTime.Value - _sessionStartTime;
+            }
+            else
+            {
+                elapsed = now - _sessionStartTime;
+            }
+
+            var remaining = sessionDuration - elapsed;
+
+            if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+
+            var text = remaining.ToString(@"hh\:mm\:ss");
+            TimerText.Text = text; // Update Main Window
+            _overlay?.UpdateStatus(text, _lastStatusSnapshot); // Update Overlay
         }
 
         public void UpdateActivityLog(ActivitySnapshot activity)

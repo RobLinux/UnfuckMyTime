@@ -9,8 +9,8 @@ namespace UnfuckMyTime.Core.Services
         public List<string> AllowedApps { get; set; } = new();
         public List<string> AllowedDomains { get; set; } = new();
         public List<string> AllowedTitleKeywords { get; set; } = new();
-        public int SlackBudgetSeconds { get; set; }
-        public int SlackWindowSeconds { get; set; }
+        public int SlackBudgetSeconds { get; set; } = 15;
+        public int SlackWindowSeconds { get; set; } = 60;
         public string Reasoning { get; set; } = string.Empty;
     }
 

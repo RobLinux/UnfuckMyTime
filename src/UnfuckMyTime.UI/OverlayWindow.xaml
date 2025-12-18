@@ -1,0 +1,83 @@
+<Window x:Class="UnfuckMyTime.UI.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Session Overlay" SizeToContent="WidthAndHeight" MinHeight="128" MinWidth="256"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ResizeMode="NoResize" ShowInTaskbar="False"
+        Left="10" Top="10" WindowStartupLocation="Manual">
+    <Border Background="#CC111111" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" MouseLeftButtonDown="Border_MouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.5"/>
+        </Border.Effect>
+        <Grid Margin="15">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /> <!-- Timer -->
+                <RowDefinition Height="Auto" /> <!-- Status Info -->
+                <RowDefinition Height="Auto" /> <!-- Controls -->
+            </Grid.RowDefinitions>
+
+            <!-- Timer Display -->
+            <TextBlock x:Name="TimerText" Text="00:00:00" Foreground="White" 
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontSize="42" FontWeight="Bold" 
+                       Margin="0,0,0,10">
+                <TextBlock.Effect>
+                    <DropShadowEffect BlurRadius="2" ShadowDepth="1" Opacity="0.8"/>
+                </TextBlock.Effect>
+            </TextBlock>
+
+            <!-- Status Section -->
+            <StackPanel Grid.Row="1" Margin="0,0,0,15">
+                <!-- Slack Budget -->
+                <Grid Margin="0,5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <TextBlock Text="Slack" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    
+                    <!-- Simple Progress Bar -->
+                    <ProgressBar x:Name="SlackProgressBar" Grid.Column="1" Height="8" 
+                                 Background="#333333" BorderThickness="0"
+                                 VerticalAlignment="Center" Margin="5,0"/>
+                    
+                    <TextBlock x:Name="SlackText" Grid.Column="2" Text="15s" Foreground="#EEEEEE" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                </Grid>
+
+                <!-- Reset Timer (Conditional) -->
+                <TextBlock x:Name="ResetText" Text="Reset in 5s..." Foreground="#FFB74D" FontSize="12" 
+                           HorizontalAlignment="Center" Margin="0,5,0,0" FontWeight="SemiBold"/>
+            </StackPanel>
+
+            <!-- Controls -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                <!-- Pause/Resume -->
+                <Button x:Name="PauseBtn" Content="⏸" Width="50" Height="35" Click="PauseBtn_Click" 
+                        Background="#33FFFFFF" Foreground="White" BorderThickness="0" FontSize="16" Margin="0,0,10,0"
+                        ToolTip="Pause Session">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="8"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+                
+                <!-- Stop -->
+                <Button x:Name="StopBtn" Content="⏹" Width="80" Height="35" Click="StopBtn_Click" 
+                        Background="#FFD32F2F" Foreground="White" BorderThickness="0" FontSize="14" FontWeight="Bold"
+                        ToolTip="Stop Session">
+                     <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="8"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
