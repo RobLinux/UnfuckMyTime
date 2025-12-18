@@ -212,10 +212,25 @@ namespace UnfuckMyTime.Core.Services
                     _lastDistractionEndTime = null;
                 }
 
-                // Attempt to pause media if we are distracted
-                if (_mediaController != null)
+                // Attempt to pause media if we are distracted (and media source is not allowed)
+                // We delegate the check to the RulesEngine
+                if (_mediaController != null && _currentPlan != null)
                 {
-                    _ = _mediaController.TryPausePlaybackAsync();
+                     _ = _mediaController.TryPausePlaybackAsync((processName, title) =>
+                     {
+                         // Create a synthetic snapshot representing the media source
+                         var mediaActivity = new ActivitySnapshot
+                         {
+                             ProcessName = processName,
+                             WindowTitle = title,
+                             Url = "", // Media controls don't give us the URL, so domain blocking is limited to Title/Process here.
+                             Timestamp = now
+                         };
+                         
+                         // Evaluate it. If it returns Distraction, then we should PAUSE.
+                         var classification = _rulesEngine.Evaluate(mediaActivity, _currentPlan, _exceptions, _notificationCount);
+                         return classification == ActivityClassification.Distraction;
+                     });
                 }
 
                 // 1. Accumulate Distraction Time

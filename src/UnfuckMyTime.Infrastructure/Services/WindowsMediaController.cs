@@ -7,7 +7,7 @@ namespace UnfuckMyTime.Infrastructure.Services
 {
     public class WindowsMediaController : IMediaController
     {
-        public async Task<bool> TryPausePlaybackAsync()
+        public async Task<bool> TryPausePlaybackAsync(Func<string, string, bool> isDistractionCallback)
         {
             try
             {
@@ -19,13 +19,20 @@ namespace UnfuckMyTime.Infrastructure.Services
                     var playbackInfo = session.GetPlaybackInfo();
                     if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                     {
-                        // Optimization: Check if the source is a browser?
-                        // string appId = session.SourceAppUserModelId.ToLowerInvariant();
-                        // if (appId.Contains("chrome") || appId.Contains("edge") || appId.Contains("firefox") || appId.Contains("opera"))
-                        // {
-                        await session.TryPauseAsync();
-                        return true;
-                        // }
+                        var props = await session.TryGetMediaPropertiesAsync();
+                        string title = props?.Title ?? string.Empty;
+                        string appId = session.SourceAppUserModelId;
+
+                        // Delegate potential distraction decision to the caller (Core Logic)
+                        bool isDistraction = isDistractionCallback(appId, title);
+                        
+                        // If it IS a distraction, pause it.
+                        // (If it's allowed or exempt, do nothing).
+                        if (isDistraction)
+                        {
+                            await session.TryPauseAsync();
+                            return true;
+                        }
                     }
                 }
             }

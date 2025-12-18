@@ -5,9 +5,9 @@ namespace UnfuckMyTime.Core.Services
     public interface IMediaController
     {
         /// <summary>
-        /// Attempts to pause any active media playback if it comes from a distracting source.
+        /// Checks active media sessions and pauses them if the provided predicate determines they are distracting.
         /// </summary>
-        /// <returns>True if pause signal was sent.</returns>
-        Task<bool> TryPausePlaybackAsync();
+        /// <param name="isDistraction">A function that takes (processName, songTitle) and returns true if it should be paused.</param>
+        Task<bool> TryPausePlaybackAsync(Func<string, string, bool> isDistraction);
     }
 }
