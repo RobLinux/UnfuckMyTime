@@ -35,6 +35,9 @@ namespace UnfuckMyTime.Infrastructure.Services
                    - SlackBudgetSeconds: How many seconds of distraction allowed before users get punished.
                    - SlackWindowSeconds: How many SECONDS of continuous focus required to FULLY RESET the SlackBudgetSeconds.
 
+                6. MainAppProcessName: The single most important process name (e.g. 'devenv') to focus on.
+                   - This is used for a 'Back to Work' button.
+
                 Return ONLY raw JSON matching this schema:
                 {
                     ""DurationMinutes"": 90,
@@ -43,6 +46,7 @@ namespace UnfuckMyTime.Infrastructure.Services
                     ""AllowedTitleKeywords"": [""ChatGPT"", ""Jira""],
                     ""SlackBudgetSeconds"": 20,
                     ""SlackWindowSeconds"": 300,
+                    ""MainAppProcessName"": ""devenv"",
                     ""Reasoning"": ""Brief explanation of the plan""
                 }"),
                 new UserChatMessage(prompt)

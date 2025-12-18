@@ -10,6 +10,7 @@ namespace UnfuckMyTime.UI
     {
         public event EventHandler? PauseRequested;
         public event EventHandler? StopRequested;
+        public string? MainAppProcessName { get; set; }
 
         private int _stopClickCount = 0;
         private DispatcherTimer _confirmationResetTimer;
@@ -35,7 +36,9 @@ namespace UnfuckMyTime.UI
                     SlackText.Text = "PAUSED";
                     SlackProgressBar.Value = 100;
                     SlackProgressBar.Foreground = System.Windows.Media.Brushes.Gray;
+                    SlackProgressBar.Foreground = System.Windows.Media.Brushes.Gray;
                     ResetText.Text = "";
+                    BackToWorkBtn.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
@@ -67,6 +70,18 @@ namespace UnfuckMyTime.UI
                     else
                     {
                         ResetText.Text = ""; // Clean
+                    }
+
+                    // Back To Work Visibility
+                    // Show if we are on a WRONG app (IsCurrentAppAllowed == false) [meaning we are burning slack or distracted]
+                    // provided we have a main app to go back to.
+                    if (!string.IsNullOrEmpty(MainAppProcessName) && !status.IsCurrentAppAllowed)
+                    {
+                        BackToWorkBtn.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        BackToWorkBtn.Visibility = Visibility.Collapsed;
                     }
                 }
             }
@@ -113,6 +128,67 @@ namespace UnfuckMyTime.UI
             _stopClickCount = 0;
             StopBtn.Content = "⏹";
             _confirmationResetTimer.Stop();
+        }
+
+        public void UpdateTimer(string text)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TimerText.Text = text;
+                // Keep blocked text in sync
+                if (BlockedTimerText != null) BlockedTimerText.Text = text;
+            });
+        }
+        public void SetFullBlock(bool active)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (active)
+                {
+                    this.SizeToContent = SizeToContent.Manual;
+                    this.WindowStyle = WindowStyle.None;
+                    this.ResizeMode = ResizeMode.NoResize;
+
+                    // Remove Corner Radius for full screen
+                    if (MainBorder != null) MainBorder.CornerRadius = new CornerRadius(0);
+
+                    this.Topmost = true;
+
+                    // Force Cover
+                    this.Left = SystemParameters.VirtualScreenLeft;
+                    this.Top = SystemParameters.VirtualScreenTop;
+                    this.Width = SystemParameters.VirtualScreenWidth;
+                    this.Height = SystemParameters.VirtualScreenHeight;
+
+                    FullBlockLayer.Visibility = Visibility.Visible;
+                    NormalContent.Visibility = Visibility.Collapsed;
+
+                    // Sync the timers immediately
+                    BlockedTimerText.Text = TimerText.Text;
+                }
+                else
+                {
+                    FullBlockLayer.Visibility = Visibility.Collapsed;
+                    NormalContent.Visibility = Visibility.Visible;
+
+                    // Restore Radius
+                    if (MainBorder != null) MainBorder.CornerRadius = new CornerRadius(12);
+
+                    this.WindowState = WindowState.Normal;
+                    this.ResizeMode = ResizeMode.CanResize;
+                    this.SizeToContent = SizeToContent.WidthAndHeight;
+
+                    this.Topmost = true;
+                }
+            });
+        }
+
+        private void BackToWorkBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (!string.IsNullOrEmpty(MainAppProcessName))
+            {
+                UnfuckMyTime.Infrastructure.Helpers.WindowHelper.BringProcessToFront(MainAppProcessName);
+            }
         }
     }
 }

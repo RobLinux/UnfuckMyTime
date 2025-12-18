@@ -6,13 +6,15 @@ namespace UnfuckMyTime.Core.Models
     public enum InterventionLevel
     {
         Notification,
-        WindowWiggle
+        WindowWiggle,
+        FullBlock
     }
 
     public class DistractionEvent
     {
         public string Message { get; set; } = string.Empty;
         public InterventionLevel Level { get; set; }
+        public double Intensity { get; set; } = 1.0;
     }
 
     public class SessionPlan
@@ -28,7 +30,10 @@ namespace UnfuckMyTime.Core.Models
         public int NotificationIntervalSeconds { get; set; } = 30;
         public int Phase2IntervalSeconds { get; set; } = 10;
         public int Phase2Threshold { get; set; } = 3;
+        public int Phase3Threshold { get; set; } = 5; // Max wiggles before Phase 3
+        public int Phase3DelaySeconds { get; set; } = 10;
         public int SlackWindowSeconds { get; set; }
+        public string? MainAppProcessName { get; set; }
 
         public TimeSpan Duration => EndTime - StartTime;
     }
@@ -75,5 +80,6 @@ namespace UnfuckMyTime.Core.Models
         public TimeSpan? TimeUntilReset { get; set; }
         public bool IsDistracted { get; set; }
         public bool IsPaused { get; set; }
+        public bool IsCurrentAppAllowed { get; set; } = true;
     }
 }

@@ -14,18 +14,29 @@ namespace UnfuckMyTime.Core.Services
 
     public class RulesEngine
     {
-        public ActivityClassification Evaluate(ActivitySnapshot activity, SessionPlan plan, IEnumerable<ExceptionRule> exceptions)
+        public ActivityClassification Evaluate(ActivitySnapshot activity, SessionPlan plan, IEnumerable<ExceptionRule> exceptions, int notificationCount = 0)
         {
             // 0. Check System Exemptions (Always Allowed)
+            // EXCEPTION: If we are in Phase 3 (Full Block), the overlay (UnfuckMyTime.UI) is NOT exempt from being "distraction"
+            // ONLY IF it is the actual "Session Overlay" blocking the screen.
+            // If it is the "UnfuckMyTime" main window (settings), we should still allow it (Exempt).
+            bool isPhase3 = notificationCount > (plan.Phase2Threshold + plan.Phase3Threshold);
             if (IsSystemExempt(activity))
             {
+                // Check if we are Phase 3 AND it is our process AND it is the Overlay window
+                if (isPhase3 &&
+                    string.Equals(activity.ProcessName, "UnfuckMyTime.UI", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(activity.WindowTitle, "Session Overlay", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ActivityClassification.Distraction;
+                }
                 return ActivityClassification.Exempt;
             }
 
             // 1. Check Exceptions (Highest Priority)
             if (IsException(activity, exceptions))
             {
-                    return ActivityClassification.Exempt;
+                return ActivityClassification.Exempt;
             }
 
             // 2. Check Session Allowlist
@@ -108,13 +119,13 @@ namespace UnfuckMyTime.Core.Services
         private static bool IsDomainMatch(string? url, string domain)
         {
             if (string.IsNullOrEmpty(url)) return false;
-            
+
             // Try explicit URI first
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
                 return uri.Host.EndsWith(domain, StringComparison.OrdinalIgnoreCase);
             }
-            
+
             // Fallback for partials or weird formats
             return url.Contains(domain, StringComparison.OrdinalIgnoreCase);
         }

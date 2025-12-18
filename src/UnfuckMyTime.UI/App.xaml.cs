@@ -4,10 +4,10 @@ using System.IO;
 using System.Windows;
 using UnfuckMyTime.Core.Models;
 using UnfuckMyTime.Core.Services;
-using UnfuckMyTime.Infrastructure.Services;
 using UnfuckMyTime.Infrastructure.Helpers;
+using UnfuckMyTime.Infrastructure.Services;
 using Forms = global::System.Windows.Forms;
- 
+
 namespace UnfuckMyTime.UI
 {
     public partial class App : System.Windows.Application
@@ -15,7 +15,7 @@ namespace UnfuckMyTime.UI
         private Forms.NotifyIcon? _notifyIcon;
         private WindowsActivityCollector? _collector;
         private MainWindow? _mainWindow;
-        private readonly SessionManager _sessionManager = new();
+        private readonly SessionManager _sessionManager = new(new WindowsMediaController());
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -40,6 +40,8 @@ namespace UnfuckMyTime.UI
             // Start Activity Collector
             _collector = new WindowsActivityCollector();
             _collector.ActivityChanged += OnActivityCaptured;
+
+            ShowMainWindow(); // Show immediately on startup
         }
 
         private void OnActivityCaptured(object? sender, ActivitySnapshot e)
@@ -63,7 +65,7 @@ namespace UnfuckMyTime.UI
             {
                 if (e.Level == InterventionLevel.WindowWiggle)
                 {
-                    _ = WindowHelper.ShakeActiveWindowAsync();
+                    _ = WindowHelper.ShakeActiveWindowAsync(e.Intensity);
                     _notifyIcon?.ShowBalloonTip(3000, "Focus Alert", e.Message, Forms.ToolTipIcon.Warning);
                 }
                 else

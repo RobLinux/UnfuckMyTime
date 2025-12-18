@@ -11,7 +11,11 @@ namespace UnfuckMyTime.Core.Services
         public List<string> AllowedTitleKeywords { get; set; } = new();
         public int SlackBudgetSeconds { get; set; } = 15;
         public int SlackWindowSeconds { get; set; } = 60;
+        public int? NotificationIntervalSeconds { get; set; }
+        public int? Phase2IntervalSeconds { get; set; }
+        public int? Phase2Threshold { get; set; }
         public string Reasoning { get; set; } = string.Empty;
+        public string? MainAppProcessName { get; set; }
     }
 
     public interface IAIGoalService

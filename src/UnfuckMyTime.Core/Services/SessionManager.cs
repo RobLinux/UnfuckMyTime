@@ -21,7 +21,8 @@ namespace UnfuckMyTime.Core.Services
             var snapshot = new SessionStatusSnapshot
             {
                 IsPaused = IsPaused,
-                IsDistracted = currentClassification == ActivityClassification.Distraction
+                IsDistracted = currentClassification == ActivityClassification.Distraction,
+                IsCurrentAppAllowed = currentClassification != ActivityClassification.Distraction
             };
 
             // Slack Remaining
@@ -58,8 +59,11 @@ namespace UnfuckMyTime.Core.Services
         // For testing purposes
         public Func<DateTime> TimeProvider { get; set; } = () => DateTime.Now;
 
-        public SessionManager()
+        private readonly IMediaController? _mediaController;
+
+        public SessionManager(IMediaController? mediaController = null)
         {
+            _mediaController = mediaController;
             _rulesEngine = new RulesEngine();
             // Initialize timer but don't start it yet
             _checkTimer = new System.Threading.Timer(OnTimerTick, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
@@ -166,7 +170,7 @@ namespace UnfuckMyTime.Core.Services
         {
             if (_currentPlan == null || IsPaused) return;
 
-            var classification = _rulesEngine.Evaluate(activity, _currentPlan, _exceptions);
+            var classification = _rulesEngine.Evaluate(activity, _currentPlan, _exceptions, _notificationCount);
             var now = TimeProvider();
 
             if (classification == ActivityClassification.Distraction)
@@ -196,8 +200,22 @@ namespace UnfuckMyTime.Core.Services
                         StateChanged?.Invoke(this, $"[Distraction Resume] Slack timer RESUMED. Left: {remaining:F1}s");
                     }
 
+                    // Enforce Phase 3 Delay on Re-entry
+                    if (_currentPlan != null && _notificationCount > (_currentPlan.Phase2Threshold + _currentPlan.Phase3Threshold))
+                    {
+                        // Reset the timer so they get the full 'Phase3DelaySeconds' grace/warning period
+                        // before the Full Block slams down again.
+                        _lastNotificationTime = now;
+                    }
+
                     // Clear the end time because we are now distracted again
                     _lastDistractionEndTime = null;
+                }
+
+                // Attempt to pause media if we are distracted
+                if (_mediaController != null)
+                {
+                    _ = _mediaController.TryPausePlaybackAsync();
                 }
 
                 // 1. Accumulate Distraction Time
@@ -227,30 +245,33 @@ namespace UnfuckMyTime.Core.Services
                         // So we generally want to accelerate immediately.
                         double currentInterval;
 
-                        if (_notificationCount < _currentPlan.Phase2Threshold)
+                        // Determine level logic
+                        int phase2Start = _currentPlan.Phase2Threshold; // e.g., 3
+                        int phase3Start = phase2Start + _currentPlan.Phase3Threshold; // e.g., 3 + 5 = 8
+
+                        if (_notificationCount < phase2Start)
                         {
                             // Phase 1: Adaptive reduction
-                            // Reduce by (Interval / Threshold) for each step
                             double baseInterval = _currentPlan.NotificationIntervalSeconds;
-                            double reductionStep = baseInterval / (double)_currentPlan.Phase2Threshold;
-
-                            // We use _notificationCount (which is 0-based for the delay check essentially,
-                            // since we increment AFTER this check usually? 
-                            // Wait, _notificationCount is incremented at line 153.
-                            // So currently it represents "how many notifications HAVE been sent".
-                            // So if we have sent 0, we wait full interval.
-                            // If we have sent 1, we wait reduced interval.
-
+                            double reductionStep = baseInterval / (double)Math.Max(1, phase2Start);
                             currentInterval = baseInterval - (_notificationCount * reductionStep);
+                        }
+                        else if (_notificationCount < phase3Start)
+                        {
+                            // Phase 2: Static fast interval (Wiggle Phase)
+                            currentInterval = _currentPlan.Phase2IntervalSeconds;
                         }
                         else
                         {
-                            // Phase 2: Static fast interval
-                            currentInterval = _currentPlan.Phase2IntervalSeconds;
+                            // Phase 3: Penalty Box (Full Block)
+                            // "If we switch back to another unauthorized app ... after X seconds ... switch back"
+                            currentInterval = _currentPlan.Phase3DelaySeconds;
                         }
 
                         // User requested minimum of 5s (was 10s, but "then 5, then every 5" implies 5s min)
-                        if (currentInterval < 5) currentInterval = 5;
+                        // However, Phase 3 delay might be specific (e.g. 10s), so we only clamp if it's NOT Phase 3 or we want a global min.
+                        // User default for Phase 3 is 10s. If they set it to 2s, we should probably honor it or clamp to reasonable min.
+                        if (currentInterval < 2) currentInterval = 2; // Lower clamp to 2s for extreme cases
 
                         if (timeSinceLast.TotalSeconds < currentInterval)
                         {
@@ -262,18 +283,52 @@ namespace UnfuckMyTime.Core.Services
                     {
                         // 4. Fire Intervention
                         _notificationCount++;
-                        var level = _notificationCount > _currentPlan.Phase2Threshold
-                            ? InterventionLevel.WindowWiggle
-                            : InterventionLevel.Notification;
 
-                        var msg = level == InterventionLevel.WindowWiggle
-                            ? $"[Alert Phase 2] WIGGLE Triggered! (#{_notificationCount})"
-                            : $"[Alert Phase 1] Notification Triggered! (#{_notificationCount})";
+                        InterventionLevel level;
+                        int phase2Start = _currentPlan.Phase2Threshold;
+                        int phase3Start = phase2Start + _currentPlan.Phase3Threshold;
+
+                        if (_notificationCount > phase3Start)
+                        {
+                            level = InterventionLevel.FullBlock;
+                        }
+                        else if (_notificationCount > phase2Start)
+                        {
+                            level = InterventionLevel.WindowWiggle;
+                        }
+                        else
+                        {
+                            level = InterventionLevel.Notification;
+                        }
+
+                        double intensity = 1.0;
+                        if (level == InterventionLevel.WindowWiggle)
+                        {
+                            int wiggleIndex = _notificationCount - phase2Start;
+                            // Augment 30% each time, max 3 augmentations (so 4th wiggle is max strength)
+                            int augmentations = Math.Clamp(wiggleIndex - 1, 0, 3);
+                            intensity = Math.Pow(1.3, augmentations);
+                        }
+
+                        string msg;
+                        switch (level)
+                        {
+                            case InterventionLevel.FullBlock:
+                                msg = $"[Alert Phase 3] FULL BLOCK Triggered! (#{_notificationCount})";
+                                break;
+                            case InterventionLevel.WindowWiggle:
+                                msg = $"[Alert Phase 2] WIGGLE Triggered! (#{_notificationCount}, x{intensity:F1})";
+                                break;
+                            default:
+                                msg = $"[Alert Phase 1] Notification Triggered! (#{_notificationCount})";
+                                break;
+                        }
 
                         DistractionDetected?.Invoke(this, new DistractionEvent
                         {
                             Message = $"Distraction detected: {activity.ProcessName}",
-                            Level = level
+                            Level = level,
+                            Intensity = intensity
                         });
 
                         StateChanged?.Invoke(this, msg);
