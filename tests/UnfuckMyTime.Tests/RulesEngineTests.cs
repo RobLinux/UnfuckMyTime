@@ -104,5 +104,23 @@ namespace UnfuckMyTime.Tests
 
             Assert.Equal(ActivityClassification.OnTrack, result);
         }
+
+        [Fact]
+        public void ShouldNotCrash_WhenUrlIsInvalid()
+        {
+            var plan = new SessionPlan
+            {
+                AllowedApps = { "chrome" },
+                AllowedDomains = { "google.com" }
+            };
+
+            // "about:blank" or raw strings might parse differently, but "invalid uri" might fail absolute parsing
+            var activity = new ActivitySnapshot { ProcessName = "chrome", Url = "not_a_valid_uri_format" };
+
+            // Should not throw
+            var result = _engine.Evaluate(activity, plan, _exceptions);
+
+            Assert.Equal(ActivityClassification.Distraction, result);
+        }
     }
 }

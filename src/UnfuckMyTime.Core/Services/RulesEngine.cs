@@ -25,7 +25,7 @@ namespace UnfuckMyTime.Core.Services
             // 1. Check Exceptions (Highest Priority)
             if (IsException(activity, exceptions))
             {
-                return ActivityClassification.Exempt;
+                    return ActivityClassification.Exempt;
             }
 
             // 2. Check Session Allowlist
@@ -56,7 +56,7 @@ namespace UnfuckMyTime.Core.Services
                 {
                     RuleMatchType.Process => string.Equals(activity.ProcessName, rule.Value, StringComparison.OrdinalIgnoreCase),
                     RuleMatchType.TitleContains => activity.WindowTitle.Contains(rule.Value, StringComparison.OrdinalIgnoreCase),
-                    RuleMatchType.Domain => !string.IsNullOrEmpty(activity.Url) && new Uri(activity.Url).Host.EndsWith(rule.Value, StringComparison.OrdinalIgnoreCase),
+                    RuleMatchType.Domain => IsDomainMatch(activity.Url, rule.Value),
                     RuleMatchType.UrlRegex => !string.IsNullOrEmpty(activity.Url) && Regex.IsMatch(activity.Url, rule.Value),
                     _ => false
                 };
@@ -91,7 +91,7 @@ namespace UnfuckMyTime.Core.Services
             }
 
             // Check URL Domains
-            if (!string.IsNullOrEmpty(activity.Url) && plan.AllowedDomains.Any(d => new Uri(activity.Url).Host.EndsWith(d, StringComparison.OrdinalIgnoreCase)))
+            if (plan.AllowedDomains.Any(d => IsDomainMatch(activity.Url, d)))
             {
                 return true;
             }
@@ -103,6 +103,20 @@ namespace UnfuckMyTime.Core.Services
             }
 
             return false;
+        }
+
+        private static bool IsDomainMatch(string? url, string domain)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            
+            // Try explicit URI first
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return uri.Host.EndsWith(domain, StringComparison.OrdinalIgnoreCase);
+            }
+            
+            // Fallback for partials or weird formats
+            return url.Contains(domain, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

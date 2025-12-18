@@ -16,6 +16,6 @@ namespace UnfuckMyTime.Core.Services
 
     public interface IAIGoalService
     {
-        Task<GeneratedPlan> GeneratePlanFromPromptAsync(string prompt, string apiKey);
+        Task<GeneratedPlan> GeneratePlanFromPromptAsync(string prompt, string apiKey, string model);
     }
 }

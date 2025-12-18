@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -92,7 +93,14 @@ namespace UnfuckMyTime.UI
                 LoadingOverlay.Visibility = Visibility.Visible;
                 GenerateBtn.IsEnabled = false;
 
-                _currentGeneratedPlan = await _aiService.GeneratePlanFromPromptAsync(prompt, apiKey);
+                // Reload config to pick up any changes
+                var builder = new ConfigurationBuilder()
+                    .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                var config = builder.Build();
+                var model = config["OpenAI:Model"] ?? "gpt-4o";
+
+                _currentGeneratedPlan = await _aiService.GeneratePlanFromPromptAsync(prompt, apiKey, model);
 
                 var jsonOption = new JsonSerializerOptions { WriteIndented = true };
                 PlanPreview.Text = JsonSerializer.Serialize(_currentGeneratedPlan, jsonOption);
@@ -128,6 +136,9 @@ namespace UnfuckMyTime.UI
                 GoalText = PromptInput.Text,
                 AllowedApps = _currentGeneratedPlan.AllowedApps,
                 AllowedDomains = _currentGeneratedPlan.AllowedDomains,
+                AllowedTitleKeywords = _currentGeneratedPlan.AllowedTitleKeywords ?? new List<string>(),
+                SlackBudgetSeconds = _currentGeneratedPlan.SlackBudgetSeconds,
+                SlackWindowSeconds = _currentGeneratedPlan.SlackWindowSeconds,
                 StartTime = _sessionStartTime,
                 EndTime = _sessionStartTime.AddMinutes(_currentGeneratedPlan.DurationMinutes),
             };

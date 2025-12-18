@@ -12,12 +12,12 @@ namespace UnfuckMyTime.Infrastructure.Services
 {
     public class OpenAIGoalService : IAIGoalService
     {
-        public async Task<GeneratedPlan> GeneratePlanFromPromptAsync(string prompt, string apiKey)
+        public async Task<GeneratedPlan> GeneratePlanFromPromptAsync(string prompt, string apiKey, string model)
         {
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new ArgumentNullException(nameof(apiKey), "OpenAI API Key is required");
 
-            var client = new ChatClient("gpt-4o", new ApiKeyCredential(apiKey));
+            var client = new ChatClient(model, new ApiKeyCredential(apiKey));
 
             var messages = new List<ChatMessage>
             {
